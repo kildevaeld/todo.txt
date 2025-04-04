@@ -19,10 +19,14 @@ pub struct Collection {
 }
 
 impl Collection {
-    pub fn open_writer<T: std::io::Read>(read: T) {
+    pub fn open_reader<T: std::io::Read>(read: T) -> std::io::Result<Collection> {
         let buf_reader = std::io::BufReader::new(read);
         let mut lines = buf_reader.lines();
 
-        for line in lines {}
+        for line in lines {
+            // let line
+        }
+
+        todo!()
     }
 }
