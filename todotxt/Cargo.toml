@@ -1,0 +1,9 @@
+[package]
+name = "todotxt"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+udled = { version = "0.3" }
+udled-tokenizers = { version = "0.2" }
+chrono = { version = "0.4", default-features = false }
