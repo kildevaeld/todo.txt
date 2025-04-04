@@ -1,6 +1,7 @@
+use chrono::NaiveDate;
 use udled::{
     Input, Lex, Tokenizer, WithSpan, any,
-    token::{Char, Digit, EOF, Many, Not, Opt, Spanned, Test, Ws},
+    token::{Char, Digit, EOF, Many, Opt, Spanned, Test},
 };
 use udled_tokenizers::{Bool, Float, Ident, Int, Str};
 
@@ -117,7 +118,7 @@ impl Tokenizer for DescriptionTokenizer {
 struct DateTokenizer;
 
 impl Tokenizer for DateTokenizer {
-    type Token<'a> = Lex<'a>;
+    type Token<'a> = udled::Item<NaiveDate>;
 
     fn to_token<'a>(
         &self,
@@ -133,7 +134,11 @@ impl Tokenizer for DateTokenizer {
 
         let str = span.slice(reader.source()).unwrap();
 
-        Ok(Lex::new(str, span))
+        Ok(udled::Item::new(
+            NaiveDate::parse_from_str(str, "%Y-%m-%d")
+                .map_err(|err| reader.error(err.to_string()))?,
+            span,
+        ))
     }
 }
 
@@ -161,7 +166,7 @@ impl Tokenizer for CompletionParser {
         &self,
         reader: &mut udled::Reader<'_, 'a>,
     ) -> Result<Self::Token<'a>, udled::Error> {
-        reader.parse(any!("x", "X")).map(|m| true)
+        reader.parse(any!("x", "X")).map(|_| true)
     }
 }
 
@@ -221,7 +226,7 @@ pub enum Item<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Value<'a> {
-    Date(Lex<'a>),
+    Date(udled::Item<NaiveDate>),
     String(Lex<'a>),
     Int(udled::Item<i128>),
     Float(udled::Item<f64>),
@@ -234,6 +239,6 @@ pub struct Todo<'a> {
     pub priority: Option<Lex<'a>>,
     pub description: Lex<'a>,
     pub items: Vec<Item<'a>>,
-    pub created: Option<Lex<'a>>,
-    pub completed: Option<Lex<'a>>,
+    pub created: Option<udled::Item<NaiveDate>>,
+    pub completed: Option<udled::Item<NaiveDate>>,
 }

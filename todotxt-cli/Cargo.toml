@@ -3,5 +3,11 @@ name = "todotxt-cli"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+path = "src/main.rs"
+name = "todo"
+
 [dependencies]
 todotxt = { path = "../todotxt" }
+inquire = { version = "0.7" }
+clap = { version = "4", features = ["derive"] }

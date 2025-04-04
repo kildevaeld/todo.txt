@@ -1,8 +1,23 @@
-use todotxt::parser::parse;
+use inquire::Text;
+use todotxt::{Collection, Todo, parser::parse};
 
-fn main() {
-    let output =
-        parse("x (A) 2022-12-20 2022-13-21 Hello, World +project @home @work test:200").unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .write(true)
+        .read(true)
+        .create(true)
+        .open("todo.txt")?;
 
-    println!("{:#?}", output);
+    let mut collection = Collection::open_reader(&mut file)?;
+
+    let input = Text::new(">").prompt()?;
+
+    let todo = Todo::from(parse(&input)?)?;
+
+    collection.create_todo(todo);
+
+    collection.write_writer(&mut file)?;
+
+    Ok(())
 }

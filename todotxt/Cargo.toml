@@ -3,6 +3,10 @@ name = "todotxt"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["std"]
+std = ["udled/std"]
+
 [dependencies]
 udled = { version = "0.3" }
 udled-tokenizers = { version = "0.2" }

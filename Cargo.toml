@@ -3,3 +3,10 @@
 resolver = "2"
 
 members = ["todotxt", "todotxt-cli"]
+
+
+[profile.release]
+lto = "fat"
+panic = "abort"
+strip = "debuginfo"
+codegen-units = 1
