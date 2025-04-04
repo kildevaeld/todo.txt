@@ -1,5 +1,5 @@
 use crossterm::{
-    ExecutableCommand, QueueableCommand, cursor,
+    QueueableCommand, cursor,
     event::{Event, KeyCode, read},
     style::{self, Stylize},
     terminal::{self, ClearType, disable_raw_mode, enable_raw_mode},
