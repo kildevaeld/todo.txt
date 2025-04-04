@@ -29,30 +29,30 @@ impl fmt::Display for Value {
 }
 
 pub struct Todo {
-    description: String,
-    created: Option<NaiveDate>,
-    completed: Option<NaiveDate>,
-    contexts: Vec<String>,
-    projects: Vec<String>,
-    done: bool,
-    values: HashMap<String, Vec<Value>>,
+    pub description: String,
+    pub created: Option<NaiveDate>,
+    pub completed: Option<NaiveDate>,
+    pub contexts: Vec<String>,
+    pub projects: Vec<String>,
+    pub done: bool,
+    pub values: HashMap<String, Vec<Value>>,
 }
 
 impl fmt::Display for Todo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.done {
-            write!(f, "X")?;
+            write!(f, "X ")?;
         }
 
         if let Some(completed) = self.completed {
-            write!(f, " {}", completed)?;
+            write!(f, "{} ", completed)?;
         }
 
         if let Some(created) = self.created {
-            write!(f, " {}", created)?;
+            write!(f, "{} ", created)?;
         }
 
-        write!(f, " {}", self.description)?;
+        write!(f, "{}", self.description)?;
 
         for project in &self.projects {
             write!(f, " +{}", project)?;
@@ -153,6 +153,17 @@ impl Collection {
         Ok(())
     }
 
+    pub fn get_mut(&mut self, idx: usize) -> Option<&mut Todo> {
+        self.todos.get_mut(idx)
+    }
+
+    pub fn remove(&mut self, idx: usize) -> Option<Todo> {
+        if idx >= self.todos.len() {
+            return None;
+        }
+        Some(self.todos.remove(idx))
+    }
+
     pub fn projects(&self) -> BTreeSet<&str> {
         self.todos
             .iter()
@@ -177,5 +188,13 @@ impl Collection {
 
     pub fn iter(&self) -> core::slice::Iter<'_, Todo> {
         self.todos.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.todos.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.todos.is_empty()
     }
 }

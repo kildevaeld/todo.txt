@@ -11,3 +11,7 @@ name = "todo"
 todotxt = { path = "../todotxt" }
 inquire = { version = "0.7" }
 clap = { version = "4", features = ["derive"] }
+directories = { version = "6" }
+color-eyre = { version = "0.6" }
+crossterm = { version = "0.28" }
+chrono = { version = "0.4" }
