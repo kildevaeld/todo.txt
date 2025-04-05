@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::IsTerminal,
     path::{Path, PathBuf},
 };
 
@@ -157,7 +158,9 @@ fn list_todos(collection: &mut Collection, args: &ArgMatches) -> color_eyre::Res
 
     let all = args.get_flag("all");
 
-    println!("{}", "Todos".underline().bold());
+    if std::io::stdout().is_terminal() {
+        println!("{}", "Todos".underline().bold());
+    }
     for todo in collection
         .iter()
         .filter(|m| {
