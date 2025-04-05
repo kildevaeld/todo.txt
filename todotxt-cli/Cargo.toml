@@ -15,3 +15,4 @@ directories = { version = "6" }
 color-eyre = { version = "0.6" }
 crossterm = { version = "0.25" }
 chrono = { version = "0.4" }
+projects = { path = "../projects" }
