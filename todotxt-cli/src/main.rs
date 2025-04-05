@@ -4,13 +4,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Arg, ArgAction, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use color_eyre::{eyre::eyre, owo_colors::OwoColorize};
 use directories::ProjectDirs;
+use editor2::ListBox;
 use inquire::Text;
+use projects::Projects;
 use todotxt::{Collection, Todo, parser::parse};
 
 mod editor;
+mod editor2;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -36,30 +39,32 @@ fn main() -> color_eyre::Result<()> {
                 )
                 .about("List todos"),
         )
-        .subcommand(clap::Command::new("edit").alias("e"))
+        .subcommand(
+            clap::Command::new("edit")
+                .alias("e")
+                .arg(Arg::new("project").required(true)),
+        )
+        .subcommand(
+            Command::new("readme")
+                .alias("r")
+                .arg(Arg::new("project").required(true)),
+        )
         .get_matches();
 
-    let file_path = if let Some(file) = matches.get_one::<String>("file") {
-        PathBuf::from(file)
-    } else {
-        initialize()?.data_local_dir().join("todo.txt")
-    };
-
-    let mut collection = if let Ok(file) = fs::OpenOptions::new().read(true).open(&file_path) {
-        Collection::open_reader(file).map_err(|err| eyre!("{err}"))?
-    } else {
-        Collection::default()
-    };
+    let mut projects = Projects::open()?;
 
     match matches.subcommand() {
         Some(("new", new_args)) => {
-            create_todo(&file_path, &mut collection, new_args)?;
+            create_todo(&mut projects, new_args)?;
         }
         Some(("list", list_args)) => {
-            list_todos(&mut collection, list_args)?;
+            list_todos(&mut projects, list_args)?;
+        }
+        Some(("readme", readme_args)) => {
+            readme(&mut projects, readme_args)?;
         }
         Some(("edit", list_args)) => {
-            edit_todos(&mut collection, &file_path, list_args)?;
+            edit_todos(&mut projects, list_args)?;
         }
         _ => {}
     };
@@ -67,35 +72,14 @@ fn main() -> color_eyre::Result<()> {
     Ok(())
 }
 
-fn initialize() -> color_eyre::Result<ProjectDirs> {
-    let dirs = directories::ProjectDirs::from("com", "Softshag", "Todo.txt")
-        .ok_or(eyre!("Could not create directories"))?;
-
-    fs::create_dir_all(dirs.data_local_dir()).ok();
-
-    Ok(dirs)
-}
-
-fn create_todo(
-    file_path: &Path,
-    collection: &mut Collection,
-    args: &ArgMatches,
-) -> color_eyre::Result<()> {
+fn create_todo(projects: &mut Projects, args: &ArgMatches) -> color_eyre::Result<()> {
     let input = if let Some(todo) = args.get_one::<String>("todo") {
         todo.trim().to_string()
     } else {
         let input = Text::new(">")
             .with_autocomplete(AutoCompleter {
-                projects: collection
-                    .projects()
-                    .into_iter()
-                    .map(|m| m.to_string())
-                    .collect(),
-                contexts: collection
-                    .contexts()
-                    .into_iter()
-                    .map(|m| m.to_string())
-                    .collect(),
+                projects: projects.iter().map(|m| m.name().to_string()).collect(),
+                contexts: Vec::new(),
             })
             .prompt_skippable()?;
 
@@ -107,17 +91,22 @@ fn create_todo(
     let mut todo = Todo::from(parse(&input)?)?;
     todo.created = Some(chrono::Local::now().date_naive());
 
-    collection.create_todo(todo);
+    if todo.projects.is_empty() {
+        eprintln!("No project specified");
+        return Ok(());
+    }
 
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(file_path)?;
+    for project_name in &todo.projects {
+        let project = if let Some(project) = projects.find_mut(&*project_name) {
+            project
+        } else {
+            projects.create(project_name.clone()).unwrap()
+        };
 
-    collection
-        .write_writer(&mut file)
-        .map_err(|err| eyre!("{err}"))?;
+        project.todos_mut().create_todo(todo.clone());
+    }
+
+    projects.sync().unwrap();
 
     Ok(())
 }
@@ -148,54 +137,76 @@ impl inquire::Autocomplete for AutoCompleter {
     }
 }
 
-fn list_todos(collection: &mut Collection, args: &ArgMatches) -> color_eyre::Result<()> {
-    if collection.is_empty() {
-        println!("You have no todos yet...");
+fn list_todos(projects: &mut Projects, args: &ArgMatches) -> color_eyre::Result<()> {
+    if projects.is_empty() {
+        println!("You have no projects yet...");
         return Ok(());
     }
 
-    let project = args.get_one::<String>("project");
-
-    let all = args.get_flag("all");
-
     if std::io::stdout().is_terminal() {
-        println!("{}", "Todos".underline().bold());
+        println!("{}", "Projects".underline().bold());
     }
-    for todo in collection
-        .iter()
-        .filter(|m| {
-            if let Some(p) = &project {
-                m.projects.contains(*p)
-            } else {
-                true
-            }
-        })
-        .filter(|m| all || !m.done)
-    {
-        println!("{}", todo);
+    for project in projects.iter() {
+        println!("{}", project.name());
     }
 
     Ok(())
 }
 
-fn edit_todos(
-    collection: &mut Collection,
-    file_path: &Path,
-    _args: &ArgMatches,
-) -> color_eyre::Result<()> {
-    if !editor::run(collection)? {
-        return Ok(());
+fn readme(projects: &mut Projects, args: &ArgMatches) -> color_eyre::Result<()> {
+    let project_name = args.get_one::<String>("project").unwrap();
+
+    let project = if let Some(project) = projects.find_mut(&*project_name) {
+        project
+    } else {
+        projects.create(project_name.clone()).unwrap()
+    };
+
+    let out = inquire::Editor::new("Readme")
+        .with_file_extension("md")
+        .with_predefined_text(&project.description())
+        .prompt_skippable()?;
+
+    let Some(out) = out else { return Ok(()) };
+
+    *project.description_mut() = out;
+
+    projects.sync()?;
+
+    Ok(())
+}
+
+// fn edit_todos(projects: &mut Projects, args: &ArgMatches) -> color_eyre::Result<()> {
+//     let project_name = args.get_one::<String>("project").unwrap();
+
+//     let project = if let Some(project) = projects.find_mut(&*project_name) {
+//         project
+//     } else {
+//         projects.create(project_name.clone()).unwrap()
+//     };
+
+//     if !editor::run(project.todos_mut())? {
+//         return Ok(());
+//     }
+
+//     projects.sync()?;
+
+//     Ok(())
+// }
+
+fn edit_todos(projects: &mut Projects, args: &ArgMatches) -> color_eyre::Result<()> {
+    for _ in 0..5 {
+        println!();
     }
 
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(file_path)?;
+    let (_, current_row) = crossterm::cursor::position()?;
+    let start = current_row - 5;
 
-    collection
-        .write_writer(&mut file)
-        .map_err(|err| eyre!("{err}"))?;
+    editor2::run(&mut ListBox::new(
+        vec!["Hello".to_string(), "World".to_string()],
+        5,
+        start,
+    ))?;
 
     Ok(())
 }

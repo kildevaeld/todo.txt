@@ -8,6 +8,7 @@ use chrono::NaiveDate;
 
 use crate::parser::{Item, parse};
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     String(String),
     Bool(bool),
@@ -28,6 +29,7 @@ impl fmt::Display for Value {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Todo {
     pub description: String,
     pub created: Option<NaiveDate>,

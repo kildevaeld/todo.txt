@@ -9,7 +9,7 @@ name = "todo"
 
 [dependencies]
 todotxt = { path = "../todotxt" }
-inquire = { version = "0.7" }
+inquire = { version = "0.7", features = ["editor"] }
 clap = { version = "4", features = ["derive"] }
 directories = { version = "6" }
 color-eyre = { version = "0.6" }

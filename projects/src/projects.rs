@@ -11,7 +11,31 @@ const TODOTXT_FILE: &'static str = "todo.txt";
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Debug)]
-pub struct Error {}
+pub enum Error {
+    Io(io::Error),
+}
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<io::Error> for Error {
+    fn from(value: io::Error) -> Self {
+        Error::Io(value)
+    }
+}
+
+impl From<BoxError> for Error {
+    fn from(value: BoxError) -> Self {
+        todo!()
+    }
+}
 
 pub struct Project {
     name: String,
@@ -30,7 +54,7 @@ impl Project {
         }
     }
 
-    fn open(path: &Path) -> Result<Project, BoxError> {
+    fn open(path: &Path) -> Result<Project, Error> {
         let name = path.file_stem().unwrap().to_str().unwrap().to_string();
         let description = std::fs::read_to_string(path.join(DESCRIPTION_FILE)).unwrap_or_default();
         let todos = if let Ok(file) = std::fs::OpenOptions::new()
@@ -50,7 +74,7 @@ impl Project {
         })
     }
 
-    fn write(&self, root: &Path) -> Result<(), BoxError> {
+    fn write(&self, root: &Path) -> Result<(), Error> {
         let project_path = root.join(&self.name);
         std::fs::create_dir_all(&project_path)?;
         std::fs::write(project_path.join(DESCRIPTION_FILE), &self.description)?;
@@ -96,13 +120,16 @@ pub struct Projects {
 }
 
 impl Projects {
-    pub fn open() -> Result<Projects, BoxError> {
+    pub fn open() -> Result<Projects, Error> {
         let dirs = directories::ProjectDirs::from("com", "Softshag", "Projects")
             .expect("Config directory");
 
         let data_dir = dirs.data_local_dir().to_path_buf();
         let config_dir = dirs.config_local_dir().to_path_buf();
         let mut projects = Vec::default();
+
+        std::fs::create_dir_all(&data_dir)?;
+
         let readdir = std::fs::read_dir(&data_dir)?;
 
         for entry in readdir {
@@ -122,7 +149,7 @@ impl Projects {
         })
     }
 
-    pub fn sync(&self) -> Result<(), BoxError> {
+    pub fn sync(&self) -> Result<(), Error> {
         for project in &self.projects {
             if project.dirty {
                 project.write(&self.data_dir)?;
@@ -151,5 +178,13 @@ impl Projects {
 
     pub fn iter(&self) -> core::slice::Iter<'_, Project> {
         self.projects.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.projects.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.projects.is_empty()
     }
 }
