@@ -1,18 +1,14 @@
 use crossterm::{
-    QueueableCommand, cursor,
-    event::{Event, KeyCode, read},
+    ExecutableCommand, QueueableCommand, cursor,
+    event::{Event, KeyCode, KeyModifiers, read},
     style::{self, Stylize},
     terminal::{self, ClearType, disable_raw_mode, enable_raw_mode},
 };
 use std::io::{self, Write};
 use todotxt::Collection;
 
-pub fn run(collection: &mut Collection) -> color_eyre::Result<()> {
-    let mut editor = Editor::new(5, collection)?;
-
-    editor.run()?;
-
-    Ok(())
+pub fn run(collection: &mut Collection) -> color_eyre::Result<bool> {
+    Editor::new(5, collection)?.run()
 }
 
 struct Editor<'a> {
@@ -25,7 +21,7 @@ struct Editor<'a> {
 
 impl<'a> Editor<'a> {
     fn new(window_height: u16, collection: &'a mut Collection) -> color_eyre::Result<Editor<'a>> {
-        for x in 0..(window_height + 2) {
+        for _ in 0..(window_height + 2) {
             println!();
         }
 
@@ -41,14 +37,16 @@ impl<'a> Editor<'a> {
         })
     }
 
-    fn run(&mut self) -> color_eyre::Result<()> {
+    fn run(&mut self) -> color_eyre::Result<bool> {
         enable_raw_mode()?;
+        self.w.execute(cursor::Hide)?;
         let ret = self.run_inner();
+        self.w.execute(cursor::Show)?;
         disable_raw_mode()?;
         ret
     }
 
-    fn run_inner(&mut self) -> color_eyre::Result<()> {
+    fn run_inner(&mut self) -> color_eyre::Result<bool> {
         self.set_input("")?;
         self.render_help()?;
         self.render_list(0, 0)?;
@@ -60,17 +58,15 @@ impl<'a> Editor<'a> {
         let mut current_row = 0u16;
         let mut pointer_idx = 0usize;
 
-        loop {
+        let save = loop {
             let event = read()?;
 
             match event {
                 Event::Key(key) => {
-                    if key.code == KeyCode::Esc {
-                        break;
-                    }
+                    //
                     match key.code {
-                        KeyCode::Esc => {
-                            break;
+                        KeyCode::Esc | KeyCode::Char('q') => {
+                            break false;
                         }
                         KeyCode::Up => {
                             if current_row == 0 {
@@ -114,6 +110,10 @@ impl<'a> Editor<'a> {
                             }
                             self.render_list(pointer_idx, current_row)?;
                         }
+                        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            break true;
+                        }
+
                         _ => {}
                     }
                 }
@@ -121,20 +121,16 @@ impl<'a> Editor<'a> {
             }
 
             self.w.queue(cursor::MoveTo(1, self.top))?.flush()?;
-        }
+        };
 
-        Ok(())
-    }
-
-    fn clear(&mut self) -> color_eyre::Result<()> {
-        Ok(())
+        Ok(save)
     }
 
     fn render_help(&mut self) -> color_eyre::Result<()> {
         self.w
             .queue(cursor::MoveTo(0, self.top + self.window_height + 1))?
             .queue(terminal::Clear(ClearType::CurrentLine))?
-            .queue(style::Print("Enter (d)elete, (c)omplete, (e)scape."))?;
+            .queue(style::Print("Enter (d)elete, (c)omplete, (q)uit."))?;
         Ok(())
     }
 

@@ -6,7 +6,7 @@ use std::{
 use clap::{Arg, ArgAction, ArgMatches};
 use color_eyre::{eyre::eyre, owo_colors::OwoColorize};
 use directories::ProjectDirs;
-use inquire::{Text, autocompletion::Replacement};
+use inquire::Text;
 use todotxt::{Collection, Todo, parser::parse};
 
 mod editor;
@@ -16,13 +16,24 @@ fn main() -> color_eyre::Result<()> {
 
     let matches = clap::Command::new("Todo.txt")
         .arg(Arg::new("file").short('f'))
-        .subcommand(clap::Command::new("new").alias("n").arg(Arg::new("todo")))
+        .subcommand(
+            clap::Command::new("new")
+                .alias("n")
+                .arg(Arg::new("todo").help("Todo in todo.txt format"))
+                .about("Create a new todo"),
+        )
         .subcommand(
             clap::Command::new("list")
                 .alias("l")
                 .arg(Arg::new("context").short('c'))
-                .arg(Arg::new("project").short('p'))
-                .arg(Arg::new("all").short('a').action(ArgAction::SetTrue)),
+                .arg(Arg::new("project").short('p').help("Filter by project"))
+                .arg(
+                    Arg::new("all")
+                        .short('a')
+                        .action(ArgAction::SetTrue)
+                        .help("Also list completed todos"),
+                )
+                .about("List todos"),
         )
         .subcommand(clap::Command::new("edit").alias("e"))
         .get_matches();
@@ -85,7 +96,9 @@ fn create_todo(
                     .map(|m| m.to_string())
                     .collect(),
             })
-            .prompt()?;
+            .prompt_skippable()?;
+
+        let Some(input) = input else { return Ok(()) };
 
         input.trim().to_string()
     };
@@ -118,6 +131,8 @@ impl inquire::Autocomplete for AutoCompleter {
     fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
         if input.ends_with("+") {
             return Ok(self.projects.clone());
+        } else if input.ends_with("@") {
+            return Ok(self.contexts.clone());
         }
 
         Ok(vec![])
@@ -125,10 +140,10 @@ impl inquire::Autocomplete for AutoCompleter {
 
     fn get_completion(
         &mut self,
-        input: &str,
+        _input: &str,
         highlighted_suggestion: Option<String>,
     ) -> Result<inquire::autocompletion::Replacement, inquire::CustomUserError> {
-        Ok(Replacement::None)
+        Ok(highlighted_suggestion)
     }
 }
 
@@ -163,9 +178,11 @@ fn list_todos(collection: &mut Collection, args: &ArgMatches) -> color_eyre::Res
 fn edit_todos(
     collection: &mut Collection,
     file_path: &Path,
-    args: &ArgMatches,
+    _args: &ArgMatches,
 ) -> color_eyre::Result<()> {
-    editor::run(collection)?;
+    if !editor::run(collection)? {
+        return Ok(());
+    }
 
     let mut file = std::fs::OpenOptions::new()
         .write(true)
