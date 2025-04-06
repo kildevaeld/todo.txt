@@ -46,7 +46,7 @@ async fn main() {
 
         trigger.send("import".to_string()).await.unwrap();
 
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
     engine.run().await;
