@@ -1,0 +1,19 @@
+[package]
+name = "trigger"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["notify"]
+notify = ["dep:notify"]
+
+[dependencies]
+futures = { version = "0.3" }
+tokio = { version = "1", features = ["sync", "rt"] }
+
+async-stream = { version = "0.3" }
+
+notify = { version = "8.0.0", features = ["serde"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "rt", "macros", "time"] }

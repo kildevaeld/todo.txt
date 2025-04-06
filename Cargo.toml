@@ -2,7 +2,7 @@
 
 resolver = "2"
 
-members = [ "projects","todotxt", "todotxt-cli"]
+members = [ "projects","todotxt", "todotxt-cli", "trigger"]
 
 
 [profile.release]
