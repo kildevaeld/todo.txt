@@ -1,13 +1,16 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use futures::{StreamExt, future::BoxFuture, stream::BoxStream};
+use notify_debouncer_full::{notify::Event, DebouncedEvent};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
     backend::{BoxTask, BoxWorker},
 };
 
-pub struct FsNotify {}
+pub struct FsNotify {
+
+}
 
 impl TriggerBackend for FsNotify {
     type Trigger = FsNotifyTrigger;
@@ -19,7 +22,7 @@ impl TriggerBackend for FsNotify {
 
     type Work = FsNotifyWorker;
 
-    type Arg = notify::Event;
+    type Arg = Event;
 
     fn clear(&mut self) {
         todo!()
@@ -38,11 +41,19 @@ impl TriggerBackend for FsNotify {
 
             let (sx, mut rx) = tokio::sync::mpsc::channel(10);
 
-            let instance = notify::recommended_watcher(move |event| {
+            let instance = notify_debouncer_full::new_debouncer(Duration::from_secs(1), None, move |event| {
                 sx.blocking_send(event);
             });
 
-            while let Some(next) = rx.recv().await {}
+            
+
+            while let Some(next) = rx.recv().await {
+               if let Ok(ret) = next {
+                for event in ret {
+                    
+                }
+               }
+            }
 
 
 
@@ -62,8 +73,8 @@ impl Trigger for FsNotifyTrigger {
 }
 
 pub struct FsNotifyWorker {
-    work: Arc<BoxTask<notify::Event>>,
-    event: notify::Event,
+    work: Arc<BoxTask<Event>>,
+    event: Event,
 }
 
 impl Worker for FsNotifyWorker {
