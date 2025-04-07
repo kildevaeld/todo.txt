@@ -1,17 +1,17 @@
-use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashSet, path::PathBuf, time::Duration};
 
 use futures::{StreamExt, future::BoxFuture, stream::BoxStream};
 use notify_debouncer_full::notify::{self, Event, RecursiveMode};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
-    backend::{BoxTask, BoxWorker, box_task},
+    backend::{BoxTask, box_task},
 };
 
 struct FsNotifyTask {
     paths: Vec<PathBuf>,
     recursive: bool,
-    work: Arc<BoxTask<Event>>,
+    work: BoxTask<Event>,
 }
 
 fn should_trigger(search_paths: &[PathBuf], event_paths: &[PathBuf], recursive: bool) -> bool {
@@ -126,7 +126,7 @@ impl Trigger for FsNotifyTrigger {
 }
 
 pub struct FsNotifyWorker {
-    work: Arc<BoxTask<Event>>,
+    work: BoxTask<Event>,
     event: Event,
 }
 

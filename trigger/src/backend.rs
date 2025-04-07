@@ -1,4 +1,5 @@
 use core::any::Any;
+use std::sync::Arc;
 
 use futures::{Stream, StreamExt, future::BoxFuture, stream::BoxStream};
 
@@ -14,7 +15,7 @@ pub trait DynTask<I>: Send + Sync {
     fn call<'a>(&'a self, input: I) -> BoxFuture<'a, ()>;
 }
 
-pub type BoxTask<I> = Box<dyn DynTask<I>>;
+pub type BoxTask<I> = Arc<dyn DynTask<I>>;
 
 pub trait Worker {
     type Future: Future<Output = ()>;
@@ -84,7 +85,7 @@ where
     I: 'static,
     for<'a> T::Future<'a>: Send,
 {
-    Box::new(TaskBox(task))
+    Arc::from(TaskBox(task))
 }
 
 struct TaskBox<T>(T);

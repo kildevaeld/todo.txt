@@ -1,5 +1,6 @@
 mod backend;
 mod engine;
+mod error;
 pub mod manuel;
 
 #[cfg(feature = "notify")]
