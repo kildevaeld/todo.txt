@@ -14,6 +14,22 @@ pub trait Task<I>: Send + Sync {
     fn call<'a>(&'a self, input: I) -> Self::Future<'a>;
 }
 
+impl<T, I, U> Task<I> for T
+where
+    T: Fn(I) -> U + Send + Sync,
+    U: Future<Output = ()> + Send,
+    I: 'static,
+{
+    type Future<'a>
+        = U
+    where
+        T: 'a;
+
+    fn call<'a>(&'a self, input: I) -> Self::Future<'a> {
+        (self)(input)
+    }
+}
+
 pub trait DynTask<I>: Send + Sync {
     fn call<'a>(&'a self, input: I) -> BoxFuture<'a, ()>;
 }

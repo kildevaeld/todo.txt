@@ -1,0 +1,28 @@
+[package]
+name = "triggerman"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt", "fs"] }
+trigger = { path = "../trigger", features = ["notify"] }
+
+klaver = { git = "https://github.com/fairy-render/klaver", features = [
+  "worker",
+] }
+rquickjs-util = { git = "https://github.com/fairy-render/klaver" }
+rquickjs = { version = "0.8" }
+
+serde = { version = "1", features = ["derive"] }
+typetag = { version = "0.2" }
+notify = { version = "8", features = ["serde"] }
+
+vaerdi = { git = "https://github.com/kildevaeld/vaerdi-rs", features = [
+  "serde",
+] }
+
+relative-path = { version = "1", features = ["serde"] }
+
+futures = { version = "0.3" }
+
+toback = { git = "https://github.com/kildevaeld/toback-rs" }
