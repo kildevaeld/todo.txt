@@ -1,13 +1,21 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use futures::{StreamExt, future::BoxFuture, stream::BoxStream};
+use notify::{Event, RecursiveMode, Watcher};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
-    backend::{BoxTask, BoxWorker},
+    backend::{BoxTask, BoxWorker, box_task},
 };
 
-pub struct FsNotify {}
+struct FsNotifyTask {
+    paths: Vec<PathBuf>,
+    work: Arc<BoxTask<Event>>,
+}
+
+pub struct FsNotify {
+    tasks: Vec<FsNotifyTask>,
+}
 
 impl TriggerBackend for FsNotify {
     type Trigger = FsNotifyTrigger;
@@ -30,7 +38,10 @@ impl TriggerBackend for FsNotify {
         trigger: Self::Trigger,
         task: W,
     ) {
-        todo!()
+        self.tasks.push(FsNotifyTask {
+            paths: trigger.paths,
+            work: box_task(task).into(),
+        });
     }
 
     fn run<'a>(&'a mut self) -> Self::Stream<'a> {
@@ -38,11 +49,29 @@ impl TriggerBackend for FsNotify {
 
             let (sx, mut rx) = tokio::sync::mpsc::channel(10);
 
-            let instance = notify::recommended_watcher(move |event| {
+            let mut instance = notify::recommended_watcher(move |event| {
+                match event 
                 sx.blocking_send(event);
-            });
+            }).unwrap();
 
-            while let Some(next) = rx.recv().await {}
+            let search_paths: HashSet<_> = self.tasks.iter().map(|m| m.paths.iter()).flatten().cloned().collect();
+
+            let instance = tokio::task::spawn_blocking(move || {
+                for path in search_paths {
+                    instance.watch(&path, RecursiveMode::Recursive);
+                }
+
+                instance
+            }).await.unwrap();
+
+            while let Some(next) = rx.recv().await {
+                for task in &self.tasks {
+                    yield FsNotifyWorker {
+                        work: task.task.clone(),
+                        event: next
+                    }
+                }
+            }
 
 
 
@@ -54,7 +83,7 @@ impl TriggerBackend for FsNotify {
 }
 
 pub struct FsNotifyTrigger {
-    path: Vec<PathBuf>,
+    paths: Vec<PathBuf>,
 }
 
 impl Trigger for FsNotifyTrigger {
