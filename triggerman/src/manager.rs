@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
+use klaver::worker::Worker;
+use rquickjs::{CatchResultExt, Function, Module, Object};
 use toback::Toback;
-use trigger::{Engine, fs_notify::FsNotify, manuel::Manuel};
+use trigger::{Engine, box_task, fs_notify::FsNotify, manuel::Manuel};
 
-use crate::config::TaskConfig;
+use crate::{bindings::QuickTask, config::TaskConfig};
 
 const CONFIG_FILE: &'static str = "config.json";
 
@@ -12,7 +14,7 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub fn open(&self, path: PathBuf) -> Manager {
+    pub fn open(path: PathBuf) -> Manager {
         Manager { path }
     }
 
@@ -36,6 +38,35 @@ impl Manager {
 
             let config_content = tokio::fs::read(&path).await.unwrap();
             let config = toback.load(&config_content, "json").unwrap();
+
+            create_task(&mut engine, next.path(), config).await;
         }
+
+        engine.run().await;
     }
+}
+
+async fn create_task(engine: &mut Engine, path: PathBuf, config: TaskConfig) {
+    let env = klaver::Options::default()
+        .search_path(&path)
+        .build_environ();
+
+    let vm = klaver::worker::Worker::new(env, None, None).await.unwrap();
+
+    let script_path = config.task.clone();
+    klaver::async_with!(vm => |ctx| {
+        let module = Module::import(&ctx, script_path.as_str()).catch(&ctx)?.into_future::<Object>().await.catch(&ctx)?;
+
+        let default = module.get::<_,Function>("default").catch(&ctx)?;
+
+        ctx.globals().set("__$handler", default)?;
+
+
+        Ok(())
+    })
+    .await.unwrap();
+
+    let task = box_task(QuickTask { vm });
+
+    config.trigger.apply(engine, task);
 }

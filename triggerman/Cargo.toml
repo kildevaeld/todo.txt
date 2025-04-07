@@ -25,4 +25,6 @@ relative-path = { version = "1", features = ["serde"] }
 
 futures = { version = "0.3" }
 
-toback = { git = "https://github.com/kildevaeld/toback-rs" }
+toback = { git = "https://github.com/kildevaeld/toback-rs", features = [
+  "json",
+] }

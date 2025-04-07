@@ -1,9 +1,10 @@
 use klaver::{RuntimeError, Vm};
-use rquickjs::{CatchResultExt, Ctx, Function, Value};
+use rquickjs::{CatchResultExt, Ctx, Function, IntoJs, Value};
+use rquickjs_util::Val;
 use trigger::{BoxFuture, Task};
 
 pub struct QuickTask {
-    vm: klaver::worker::Worker,
+    pub vm: klaver::worker::Worker,
 }
 
 impl<T> Task<T> for QuickTask
@@ -31,11 +32,18 @@ where
 
               Ok(())
             })
-            .await;
+            .await
+            .unwrap();
         })
     }
 }
 
 pub trait IntoJavascript {
     fn into_js<'js>(self, ctx: Ctx<'js>) -> Result<Value<'js>, RuntimeError>;
+}
+
+impl IntoJavascript for vaerdi::Value {
+    fn into_js<'js>(self, ctx: Ctx<'js>) -> Result<Value<'js>, RuntimeError> {
+        Ok(<Val as IntoJs<'js>>::into_js(Val(self), &ctx)?)
+    }
 }
