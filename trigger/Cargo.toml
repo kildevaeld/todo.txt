@@ -8,8 +8,14 @@ default = ["notify"]
 notify = ["dep:notify-debouncer-full"]
 
 [dependencies]
-futures = { version = "0.3" }
+futures-core = { version = "0.3", default-features = false, features = [
+  "alloc",
+] }
+futures-util = { version = "0.3", default-features = false, features = [
+  "alloc",
+] }
 tokio = { version = "1", features = ["sync", "rt"] }
+tracing = { version = "0.1" }
 
 async-stream = { version = "0.3" }
 
@@ -17,3 +23,8 @@ notify-debouncer-full = { version = "0.5.0", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "rt", "macros", "time"] }
+
+[[example]]
+name = "trigger"
+path = "examples/trigger.rs"
+required-features = ["notify"]

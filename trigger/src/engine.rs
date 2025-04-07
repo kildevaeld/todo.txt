@@ -1,7 +1,12 @@
 use core::any::Any;
 
-use crate::backend::{AnyBackend, BackendBox, Task, Trigger, TriggerBackend, Worker};
-use futures::StreamExt;
+use futures_util::StreamExt;
+
+use crate::{
+    backend::{AnyBackend, BackendBox, Task, Trigger, TriggerBackend, Worker},
+    error::BoxError,
+};
+// use futures::StreamExt;
 
 #[derive(Default)]
 pub struct Engine {
@@ -13,6 +18,7 @@ impl Engine {
     where
         T: TriggerBackend + 'static,
         T::Work: Send,
+        T::Error: Into<BoxError>,
         for<'a> T::Stream<'a>: Send,
         <T::Work as Worker>::Future: Send,
     {
@@ -40,13 +46,21 @@ impl Engine {
     }
 
     pub async fn run(&mut self) {
-        let mut tasks = futures::stream::select_all(self.backends.iter_mut().map(|m| m.run()));
+        let mut tasks = futures_util::stream::select_all(self.backends.iter_mut().map(|m| m.run()));
 
         let concurrency = 10;
 
         let waitgroup = tokio::sync::Semaphore::new(concurrency);
 
-        while let Some(task) = tasks.next().await {
+        while let Some(next) = tasks.next().await {
+            let task = match next {
+                Ok(ret) => ret,
+                Err(err) => {
+                    println!("Task failed: {}", err);
+                    continue;
+                }
+            };
+
             let permit = waitgroup.acquire().await.expect("Semaphore open");
             tokio::spawn(async move {
                 let _ = permit;

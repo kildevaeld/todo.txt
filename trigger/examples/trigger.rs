@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use futures::{SinkExt, future::BoxFuture};
+use futures_core::future::BoxFuture;
 use notify_debouncer_full::notify::Event;
 use trigger::{
     Engine, Task,
@@ -75,11 +75,11 @@ async fn main() {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        trigger.send("import".to_string()).await.unwrap();
+        trigger.trigger("import".to_string()).await;
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        trigger.send("import".to_string()).await.unwrap();
+        trigger.trigger("import".to_string()).await;
 
         tokio::time::sleep(Duration::from_secs(1)).await;
     });

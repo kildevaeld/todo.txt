@@ -1,12 +1,15 @@
 use std::{collections::HashSet, path::PathBuf, time::Duration};
 
-use futures::{StreamExt, future::BoxFuture, stream::BoxStream};
-use notify_debouncer_full::notify::{self, Event, RecursiveMode};
+use futures_core::{future::BoxFuture, stream::BoxStream};
+use notify_debouncer_full::notify::{self, RecursiveMode};
+use tracing::warn;
 
 use crate::{
     Trigger, TriggerBackend, Worker,
     backend::{BoxTask, box_task},
 };
+
+pub use notify_debouncer_full::notify::{Event, EventKind};
 
 struct FsNotifyTask {
     paths: Vec<PathBuf>,
@@ -41,13 +44,15 @@ impl TriggerBackend for FsNotify {
     type Trigger = FsNotifyTrigger;
 
     type Stream<'a>
-        = BoxStream<'a, Self::Work>
+        = BoxStream<'a, Result<Self::Work, Self::Error>>
     where
         Self: 'a;
 
     type Work = FsNotifyWorker;
 
     type Arg = Event;
+
+    type Error = notify_debouncer_full::notify::Error;
 
     fn clear(&mut self) {
         todo!()
@@ -57,16 +62,18 @@ impl TriggerBackend for FsNotify {
         &mut self,
         trigger: Self::Trigger,
         task: W,
-    ) {
+    ) -> Result<(), Self::Error> {
         self.tasks.push(FsNotifyTask {
             paths: trigger.paths,
             recursive: trigger.recursive,
             work: box_task(task).into(),
         });
+
+        Ok(())
     }
 
     fn run<'a>(&'a mut self) -> Self::Stream<'a> {
-        async_stream::stream! {
+        let stream = async_stream::stream! {
 
             let (sx, mut rx) = tokio::sync::mpsc::channel(10);
 
@@ -76,10 +83,11 @@ impl TriggerBackend for FsNotify {
                         sx.blocking_send(ret).ok();
                     }
                     Err(err) => {
-                        println!("{:?}", err);
+                        warn!(error = ?err, "Notify error");
+
                     }
                 }
-            }).unwrap();
+            })?;
 
             let search_paths: HashSet<_> = self.tasks.iter().map(|m| m.paths.iter().map(|path| (path.clone(), m.recursive))).flatten().collect();
 
@@ -93,7 +101,7 @@ impl TriggerBackend for FsNotify {
                 }
 
                notify::Result::Ok(instance)
-            }).await.unwrap();
+            }).await.expect("blocking spawn");
 
             while let Some(next) = rx.recv().await {
                 for event in next {
@@ -101,18 +109,19 @@ impl TriggerBackend for FsNotify {
                         if !should_trigger(&task.paths, &event.paths, task.recursive) {
                             continue;
                         }
-                        yield FsNotifyWorker {
+                        yield Ok(FsNotifyWorker {
                             work: task.work.clone(),
                             event:event.event.clone()
-                        }
+                        })
                     }
                 }
             }
 
 
 
-        }
-        .boxed()
+        };
+
+        Box::pin(stream)
     }
 }
 
