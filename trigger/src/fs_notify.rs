@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use futures::{future::BoxFuture, stream::BoxStream};
+use futures::{StreamExt, future::BoxFuture, stream::BoxStream};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
@@ -34,6 +34,21 @@ impl TriggerBackend for FsNotify {
     }
 
     fn run<'a>(&'a mut self) -> Self::Stream<'a> {
+        async_stream::stream! {
+
+            let (sx, mut rx) = tokio::sync::mpsc::channel(10);
+
+            let instance = notify::recommended_watcher(move |event| {
+                sx.blocking_send(event);
+            });
+
+            while let Some(next) = rx.recv().await {}
+
+
+
+        }
+        .boxed();
+
         todo!()
     }
 }
