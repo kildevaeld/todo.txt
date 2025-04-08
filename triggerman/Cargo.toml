@@ -30,3 +30,7 @@ toback = { git = "https://github.com/kildevaeld/toback-rs", features = [
 ] }
 
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+interprocess = { version = "2", features = ["tokio"] }
+
+color-eyre = { version = "0.6" }
