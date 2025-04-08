@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = ["macros", "rt", "fs"] }
+tokio = { version = "1", features = ["macros", "rt", "fs", "signal"] }
 trigger = { path = "../trigger", features = ["notify"] }
 
 klaver = { git = "https://github.com/fairy-render/klaver", features = [
@@ -28,3 +28,5 @@ futures = { version = "0.3" }
 toback = { git = "https://github.com/kildevaeld/toback-rs", features = [
   "json",
 ] }
+
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

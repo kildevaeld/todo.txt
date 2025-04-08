@@ -1,16 +1,27 @@
 use core::any::Any;
+use std::time::Duration;
 
 use futures_util::StreamExt;
 
 use crate::{
+    abort_controller::AbortController,
     backend::{AnyBackend, BackendBox, Task, Trigger, TriggerBackend, Worker},
     error::BoxError,
 };
 // use futures::StreamExt;
 
-#[derive(Default)]
 pub struct Engine {
     backends: Vec<Box<dyn AnyBackend>>,
+    concurrency: usize,
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Engine {
+            backends: Default::default(),
+            concurrency: 10,
+        }
+    }
 }
 
 impl Engine {
@@ -45,27 +56,72 @@ impl Engine {
         }
     }
 
-    pub async fn run(&mut self) {
-        let mut tasks = futures_util::stream::select_all(self.backends.iter_mut().map(|m| m.run()));
+    pub async fn run(&mut self, abort: Option<AbortController>) {
+        let abort = abort.unwrap_or_default();
+        let mut tasks = futures_util::stream::select_all(
+            self.backends.iter_mut().map(|m| m.run(abort.clone())),
+        );
 
-        let concurrency = 10;
+        let semaphore = tokio::sync::Semaphore::new(self.concurrency);
 
-        let waitgroup = tokio::sync::Semaphore::new(concurrency);
+        let mut waitgroup = awaitgroup::WaitGroup::new();
 
-        while let Some(next) = tasks.next().await {
-            let task = match next {
-                Ok(ret) => ret,
-                Err(err) => {
-                    println!("Task failed: {}", err);
-                    continue;
+        loop {
+            if abort.is_aborted() {
+                break;
+            }
+
+            tokio::select! {
+                next = tasks.next() => {
+                    let Some(next) = next else {
+                        break
+                    };
+                    let task = match next {
+                        Ok(ret) => ret,
+                        Err(err) => {
+                            println!("Task failed: {}", err);
+                            continue;
+                        }
+                    };
+
+                    let permit = semaphore.acquire().await.expect("Semaphore open");
+                    if abort.is_aborted() {
+                        break
+                    }
+
+                    let worker = waitgroup.worker();
+
+                    tokio::spawn(async move {
+                        let _ = permit;
+                        task.run().await;
+                        worker.done();
+                    });
                 }
-            };
-
-            let permit = waitgroup.acquire().await.expect("Semaphore open");
-            tokio::spawn(async move {
-                let _ = permit;
-                task.run().await;
-            });
+                _ = abort.wait() => {
+                    tracing::debug!("Closing");
+                    break;
+                }
+            }
         }
+
+        tokio::time::timeout(Duration::from_secs(5), waitgroup.wait())
+            .await
+            .ok();
+
+        // while let Some(next) = tasks.next().await {
+        //     let task = match next {
+        //         Ok(ret) => ret,
+        //         Err(err) => {
+        //             println!("Task failed: {}", err);
+        //             continue;
+        //         }
+        //     };
+
+        //     let permit = waitgroup.acquire().await.expect("Semaphore open");
+        //     tokio::spawn(async move {
+        //         let _ = permit;
+        //         task.run().await;
+        //     });
+        // }
     }
 }

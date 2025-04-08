@@ -1,3 +1,6 @@
 export default function (args) {
-	console.log("Trigger", args);
+  // if (args.mode !== "write") {
+  //   return;
+  // }
+  console.log("Trigger");
 }

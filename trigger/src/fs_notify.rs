@@ -2,10 +2,11 @@ use std::{collections::HashSet, path::PathBuf, time::Duration};
 
 use futures_core::{future::BoxFuture, stream::BoxStream};
 use notify_debouncer_full::notify::{self, RecursiveMode};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
+    abort_controller::AbortController,
     backend::{BoxTask, box_task},
 };
 
@@ -63,8 +64,14 @@ impl TriggerBackend for FsNotify {
         trigger: Self::Trigger,
         task: W,
     ) -> Result<(), Self::Error> {
+        let paths = trigger
+            .paths
+            .into_iter()
+            .map(|m| m.canonicalize())
+            .collect::<Result<_, _>>()?;
+
         self.tasks.push(FsNotifyTask {
-            paths: trigger.paths,
+            paths,
             recursive: trigger.recursive,
             work: box_task(task).into(),
         });
@@ -72,7 +79,7 @@ impl TriggerBackend for FsNotify {
         Ok(())
     }
 
-    fn run<'a>(&'a mut self) -> Self::Stream<'a> {
+    fn run<'a>(&'a mut self, abort: AbortController) -> Self::Stream<'a> {
         let stream = async_stream::stream! {
 
             let (sx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -91,8 +98,9 @@ impl TriggerBackend for FsNotify {
 
             let search_paths: HashSet<_> = self.tasks.iter().map(|m| m.paths.iter().map(|path| (path.clone(), m.recursive))).flatten().collect();
 
-            let _instance = tokio::task::spawn_blocking(move || {
+            let instance = tokio::task::spawn_blocking(move || {
                 for (path, recursive) in search_paths {
+                    debug!(path = ?path, recursive = recursive, "Add watch path");
                     instance.watch(&path, if recursive {
                         RecursiveMode::Recursive
                     } else {
@@ -101,23 +109,41 @@ impl TriggerBackend for FsNotify {
                 }
 
                notify::Result::Ok(instance)
-            }).await.expect("blocking spawn");
+            }).await.expect("blocking spawn")?;
 
-            while let Some(next) = rx.recv().await {
-                for event in next {
-                    for task in &self.tasks {
-                        if !should_trigger(&task.paths, &event.paths, task.recursive) {
-                            continue;
-                        }
-                        yield Ok(FsNotifyWorker {
-                            work: task.work.clone(),
-                            event:event.event.clone()
-                        })
-                    }
-                }
+            if abort.is_aborted() {
+                return;
             }
 
+            loop {
+                tokio::select! {
+                    next = rx.recv() => {
+                        let Some(next) = next else {
+                            break
+                        };
 
+                        for event in next {
+                            for task in &self.tasks {
+                                if !should_trigger(&task.paths, &event.paths, task.recursive) {
+                                    debug!("not in search path");
+                                    continue;
+                                }
+                                yield Ok(FsNotifyWorker {
+                                    work: task.work.clone(),
+                                    event:event.event.clone()
+                                })
+                            }
+                        }
+                    }
+                    _ = abort.wait() => {
+                        tokio::task::spawn_blocking(move || {
+                            instance.stop();
+                        }).await.ok();
+                        break
+                    }
+                };
+
+            }
 
         };
 

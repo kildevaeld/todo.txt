@@ -4,7 +4,10 @@ use std::sync::Arc;
 use futures_core::{Stream, future::BoxFuture, stream::BoxStream};
 use futures_util::{StreamExt, TryStreamExt};
 
-use crate::error::{BoxError, Error};
+use crate::{
+    abort_controller::AbortController,
+    error::{BoxError, Error},
+};
 
 pub trait Task<I>: Send + Sync {
     type Future<'a>: Future<Output = ()> + Send
@@ -57,7 +60,7 @@ pub trait TriggerBackend {
         task: W,
     ) -> Result<(), Self::Error>;
 
-    fn run<'a>(&'a mut self) -> Self::Stream<'a>;
+    fn run<'a>(&'a mut self, abort: AbortController) -> Self::Stream<'a>;
 }
 
 pub trait Trigger {
@@ -65,7 +68,7 @@ pub trait Trigger {
 }
 
 pub trait AnyBackend: Any {
-    fn run<'a>(&'a mut self) -> BoxStream<'a, Result<BoxWorker, Error>>;
+    fn run<'a>(&'a mut self, abort: AbortController) -> BoxStream<'a, Result<BoxWorker, Error>>;
 }
 
 pub type BoxWorker = Box<dyn DynWorker + Send>;
@@ -96,9 +99,9 @@ where
     for<'a> T::Stream<'a>: Send,
     <T::Work as Worker>::Future: Send,
 {
-    fn run<'a>(&'a mut self) -> BoxStream<'a, Result<BoxWorker, Error>> {
+    fn run<'a>(&'a mut self, abort: AbortController) -> BoxStream<'a, Result<BoxWorker, Error>> {
         self.0
-            .run()
+            .run(abort)
             .map_ok(|worker| Box::new(WorkerBox(worker)) as BoxWorker)
             .map_err(Error::new)
             .boxed()

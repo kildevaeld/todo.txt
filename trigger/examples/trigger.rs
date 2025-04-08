@@ -84,5 +84,5 @@ async fn main() {
         tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
-    engine.run().await;
+    engine.run(None).await;
 }

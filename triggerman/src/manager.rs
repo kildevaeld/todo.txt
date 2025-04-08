@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use klaver::worker::Worker;
 use rquickjs::{CatchResultExt, Function, Module, Object};
 use toback::Toback;
-use trigger::{Engine, box_task, fs_notify::FsNotify, manuel::Manuel};
+use trigger::{AbortController, Engine, box_task, fs_notify::FsNotify, manuel::Manuel};
 
 use crate::{bindings::QuickTask, config::TaskConfig};
 
@@ -18,7 +18,7 @@ impl Manager {
         Manager { path }
     }
 
-    pub async fn run(&self) {
+    pub async fn run(&self, abort: AbortController) {
         let mut engine = Engine::default();
 
         let (manuel, provider) = Manuel::new();
@@ -42,7 +42,7 @@ impl Manager {
             create_task(&mut engine, next.path(), config).await;
         }
 
-        engine.run().await;
+        engine.run(Some(abort)).await;
     }
 }
 

@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     Trigger, TriggerBackend, Worker,
+    abort_controller::AbortController,
     backend::{BoxTask, box_task},
     error::Error,
 };
@@ -56,7 +57,7 @@ impl TriggerBackend for Manuel {
         Ok(())
     }
 
-    fn run<'a>(&'a mut self) -> Self::Stream<'a> {
+    fn run<'a>(&'a mut self, abort: AbortController) -> Self::Stream<'a> {
         let stream = async_stream::stream! {
 
 

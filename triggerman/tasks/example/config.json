@@ -1,8 +1,8 @@
 {
-	"trigger": {
-		"type": "NotifyConfig",
-		"paths": ["./trigger"],
-		"recursive": true
-	},
-	"task": "./script.js"
+  "trigger": {
+    "type": "NotifyConfig",
+    "paths": ["trigger"],
+    "recursive": true
+  },
+  "task": "./script.js"
 }

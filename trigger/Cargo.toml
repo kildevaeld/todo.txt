@@ -15,6 +15,7 @@ futures-util = { version = "0.3", default-features = false, features = [
   "alloc",
 ] }
 tokio = { version = "1", features = ["sync", "rt"] }
+awaitgroup = { version = "0.7" }
 tracing = { version = "0.1" }
 
 async-stream = { version = "0.3" }
